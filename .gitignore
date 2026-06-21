@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+gradle-8.7/
+gradle-8.7-bin.zip
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+*.class
+
+# Fabric
+run/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+*.log
