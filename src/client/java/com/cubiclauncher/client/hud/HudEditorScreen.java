@@ -70,56 +70,95 @@ public class HudEditorScreen extends Screen {
             dragging.savePos(dragging.x, dragging.y);
         }
 
-        // Dark transparent overlay
-        fill(poseStack, 0, 0, width, height, 0xB0050508);
+        // Very subtle dark overlay
+        fill(poseStack, 0, 0, width, height, 0x40000000);
 
-        // Grid hint lines (subtle)
-        for (int gx = 0; gx < width; gx += 20)
-            fill(poseStack, gx, 0, gx + 1, height, 0x14FFFFFF);
-        for (int gy = 0; gy < height; gy += 20)
-            fill(poseStack, 0, gy, width, gy + 1, 0x14FFFFFF);
+        // Minimal header
+        drawCenteredString(poseStack, font, "Editor de HUD", width / 2, 6, 0xFFFFFFFF);
+        drawString(poseStack, font, "ESC para salir", 6, 6, 0xFFAAAAAA);
 
-        // Header bar
-        fill(poseStack, 0, 0, width, 18, 0xE0080810);
-        drawCenteredString(poseStack, font, "Editor de HUD  —  Arrastra los elementos", width / 2, 5, 0xFF00FFCC);
-        drawString(poseStack, font, "ESC para guardar y salir", 6, 5, 0xFF8A8A93);
-
-        // Draw each widget
+        // Draw each widget with actual HUD content
         for (HudWidget w : widgets) {
             boolean hovered = dragging == w || (mouseX >= w.x && mouseX < w.x + w.w && mouseY >= w.y && mouseY < w.y + w.h);
 
-            // Shadow
-            fill(poseStack, w.x + 2, w.y + 2, w.x + w.w + 2, w.y + w.h + 2, 0x55000000);
-
-            // Background
-            int bg = hovered ? 0xEA1C1C28 : 0xE0121218;
-            fill(poseStack, w.x, w.y, w.x + w.w, w.y + w.h, bg);
-
-            // Neon cyan border
-            int borderCol = (dragging == w) ? 0xFF00FFCC : (hovered ? 0x9900FFCC : 0x5500FFCC);
-            fill(poseStack, w.x, w.y, w.x + w.w, w.y + 1, borderCol);
-            fill(poseStack, w.x, w.y + w.h - 1, w.x + w.w, w.y + w.h, borderCol);
-            fill(poseStack, w.x, w.y, w.x + 1, w.y + w.h, borderCol);
-            fill(poseStack, w.x + w.w - 1, w.y, w.x + w.w, w.y + w.h, borderCol);
-
-            // Label centred inside widget
-            int labelColor = (dragging == w) ? 0xFF00FFCC : 0xFFE1E1E6;
-            int lx = w.x + (w.w - font.width(w.label)) / 2;
-            int ly = w.y + (w.h - 8) / 2;
-            drawString(poseStack, font, w.label, lx, ly, labelColor);
-
-            // Coords hint below label
-            if (hovered) {
-                String pos = w.x + ", " + w.y;
-                int px = w.x + (w.w - font.width(pos)) / 2;
-                drawString(poseStack, font, pos, px, ly + 10, 0xFF8A8A93);
+            // Subtle selection indicator - thin cyan border
+            if (hovered || dragging == w) {
+                int borderAlpha = (dragging == w) ? 0xFF : 0xAA;
+                fill(poseStack, w.x - 1, w.y - 1, w.x + w.w + 1, w.y, 0x00FFCC | (borderAlpha << 24));
+                fill(poseStack, w.x - 1, w.y + w.h, w.x + w.w + 1, w.y + w.h + 1, 0x00FFCC | (borderAlpha << 24));
+                fill(poseStack, w.x - 1, w.y, w.x, w.y + w.h, 0x00FFCC | (borderAlpha << 24));
+                fill(poseStack, w.x + w.w, w.y, w.x + w.w + 1, w.y + w.h, 0x00FFCC | (borderAlpha << 24));
             }
+
+            // Render actual HUD content preview
+            renderHudPreview(poseStack, w, hovered);
         }
 
         // Hint when no active widgets
         if (widgets.isEmpty()) {
-            drawCenteredString(poseStack, font, "Activa al menos un elemento del HUD en el menú primero.", width / 2, height / 2, 0xFF8A8A93);
+            drawCenteredString(poseStack, font, "Activa al menos un elemento del HUD en el menú primero.", width / 2, height / 2, 0xFFAAAAAA);
         }
+    }
+
+    private void renderHudPreview(PoseStack poseStack, HudWidget w, boolean hovered) {
+        HudConfig cfg = HudConfig.getInstance();
+        int color = 0xFFFFFFFF;
+        int shadowColor = 0x80000000;
+
+        String text = "";
+        switch (w.label) {
+            case "FPS":
+                text = "FPS: " + mc.fpsString;
+                break;
+            case "Coordenadas":
+                if (mc.player != null) {
+                    text = String.format("%.1f / %.1f / %.1f", mc.player.getX(), mc.player.getY(), mc.player.getZ());
+                }
+                break;
+            case "Brújula":
+                text = getFacingDirection();
+                break;
+            case "Armadura":
+                renderArmorPreview(poseStack, w.x, w.y);
+                return;
+            case "Objetos":
+                renderHeldItemsPreview(poseStack, w.x, w.y);
+                return;
+        }
+
+        if (!text.isEmpty()) {
+            mc.font.draw(poseStack, text, w.x + 1, w.y + 1, shadowColor);
+            mc.font.draw(poseStack, text, w.x, w.y, color);
+        }
+
+        // Show position hint when hovered
+        if (hovered) {
+            String pos = w.x + ", " + w.y;
+            mc.font.draw(poseStack, pos, w.x, w.y + w.h + 2, 0xFF00FFCC);
+        }
+    }
+
+    private String getFacingDirection() {
+        if (mc.player == null) return "?";
+        return switch (mc.player.getDirection()) {
+            case NORTH -> "N  (-Z)";
+            case SOUTH -> "S  (+Z)";
+            case EAST  -> "E  (+X)";
+            case WEST  -> "W  (-X)";
+            default -> "?";
+        };
+    }
+
+    private void renderArmorPreview(PoseStack poseStack, int x, int y) {
+        String[] labels = { "H", "C", "L", "B" };
+        for (int i = 0; i < labels.length; i++) {
+            mc.font.draw(poseStack, labels[i], x, y + i * 18, 0xFFFFFFFF);
+        }
+    }
+
+    private void renderHeldItemsPreview(PoseStack poseStack, int x, int y) {
+        mc.font.draw(poseStack, "M", x, y, 0xFFFFFFFF);
+        mc.font.draw(poseStack, "O", x, y + 18, 0xFFFFFFFF);
     }
 
     @Override
